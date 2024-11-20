@@ -26,4 +26,4 @@ The code for implementing and summarizing functional linear cox regression model
 * `ccdata_proposed.R`: The implementation of SPLS-Cox on real data via function ***CC_estimate*** and parallel computing.
 * `ccdata_result.R`: Developing the point-wise confidence band and summarizing the result. The function ***get_ci*** is analogous to the ***get_PWCB*** previously mentioned.
 * `ccdata_FLCRM.R`: implementing and summarizing the FLCRM with both scalar and shape predictors.
-* `ccdata_onlyscalar.R`: implementing and summarizing standard Cox methods based on only scalar predictor.
+* `ccdata_onlyscalar.R`: implementing and summarizing standard Cox methods based on only scalar predictors.
