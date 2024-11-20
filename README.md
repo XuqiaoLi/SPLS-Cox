@@ -12,7 +12,7 @@ evaluate the finite sample performance of our SPLS-Cox. The real application rev
 
 ## Simulation studies
 ### code for proposed method in simulation study
-* `simulation_shape.R`:  Simulation studies in the main text, which synthetic data that mimics the CC shape data. The function *generator* generates the data based on different configurations. The function *parasimulation* returns the estimation results, which can be implemented via parallel computing.
+* `simulation_shape.R`:  Simulation studies in the main text, which synthetic data that mimics the CC shape data. The function *generator* generates the data based on different configurations. The function ***parasimulation*** returns the estimation results, which can be implemented via parallel computing.
 * `shape_RMSE_result.R`:  Summarizing the estimation result.
 * `shape_pointwise_result.R`: Developing the point-wise confidence band and summarizing the result. The function *get_PWCB* is related to the algorithm in Section 2.4.
 
