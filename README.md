@@ -8,11 +8,11 @@ evaluate the finite sample performance of our SPLS-Cox. The real application rev
 ## Data
 * `ccdata.csv`: The CC shape data of 372 MCI patients, a 372*200 matrix.
 * `CCinfo.csv`: The CC subregion volumetric data of 372 MCI patients, we segmented the CC into five regions including  anterior, central, mid-anterior, mid-posterior, and posterior. We also calculated the volume of each subregion across all patients
-* `clinical.dat`: The clinical scalar covariates of these patients, including demographic and APOE information. We exclude the 331 row due to the missingness of the corresponding ccdata and CCinfo.
+* `clinical.dat`: The clinical scalar covariates of these patients, including demographic and APOE information. We exclude the 331 row due to the missingness of the corresponding ccdata.
 
 ## Simulation studies
 ### code for proposed method in simulation study
-* `simulation_shape.R`:  Simulation studies in the main text, which synthetic data that mimics the CC shape data. The function *generator* generates the data based on different configurations. The function ***parasimulation*** returns the estimation results, which can be implemented via parallel computing.
+* `simulation_shape.R`:  Simulation studies in the main text, which synthetic data that mimics the CC shape data. The function *generator()* generates the data based on different configurations. The function **parasimulation()** returns the estimation results, which can be implemented via parallel computing.
 * `shape_RMSE_result.R`: Summarizing the estimation result.
 * `shape_pointwise_result.R`: Developing the point-wise confidence band and summarizing the result. The function ***get_PWCB*** is related to the algorithm in Section 2.4.
 
