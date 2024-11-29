@@ -94,3 +94,30 @@ for(i in 1:length(coef_vec)){
   bb=paste(bb,se_vec[i],sep = ' & ')
   cc=paste(cc,pvalue_vec[i],sep = ' & ')
 }
+
+
+# ###### prediction using cross-validation analysis #####
+# thisseed=2020
+# n.test=122
+# n.train=n-n.test
+# FLCRM_estimate_predict<-function(init_seed){
+#   set.seed(thisseed+init_seed)
+#   index.train=sample(x = n,size = n.train,replace = F) 
+#   newdataframe.train=newdataframe[index.train,]
+#   newdataframe.test=newdataframe[-index.train,]
+#   
+#   fullcoxresult<-coxph(formula=totalformular, data=newdataframe.train)
+#   
+#   pre.new=predict(fullcoxresult,newdata = newdataframe.test[,-c(1,2)],type = 'lp')
+#   cindex.pre<-concordance.index(pre.new,surv.time = newdataframe.test$time, 
+#                                 surv.event = newdataframe.test$event ,method = "noether")
+#   corindex.test=c(cindex.pre$c.index,cindex.pre$se)
+#   
+#   return(corindex.test=corindex.test)}
+# 
+# replication.num=500
+# cindex.all=matrix(NA,nrow = replication.num,ncol = 2)
+# for(i in 1:replication.num){
+#   cindex.all[i,]=FLCRM_estimate_predict(i)
+# }
+# apply(cindex.all,2,mean)

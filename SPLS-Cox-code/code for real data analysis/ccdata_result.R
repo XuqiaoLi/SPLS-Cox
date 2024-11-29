@@ -2,8 +2,8 @@ library(parallel)
 library(snowfall)
 rm(list=ls())
 
-################ Estimated results ##########################
-# Load the 6000 results and find the valid results, around 1600
+################ Estimated ##########################
+# Load the 6000 results and find the valid results, around 1600.
 load(paste('realdata_',16,'CCfpca','.Rdata',sep = ''))  
 valid=rep(NA,6000);i=1
 for(count in 1:6000){
@@ -21,7 +21,7 @@ for (count in valid){
   i=i+1
 }
 loglik_fit=na.omit(loglik_fit)
-best_res=which.max(loglik_fit) # the best result with maximum log likelihood
+best_res=which.max(loglik_fit)
 
 ############## Generate the multiplier process ############
 get_ci<-function(count){
@@ -31,13 +31,13 @@ get_ci<-function(count){
   appr_bias_M=appr_bias=matrix(0,M,200)
   
   for(i in 1:M){
-  
+    
     norm_vec=matrix(rep(rnorm(m),res_count$rn),ncol = m,byrow = T) 
     score_pertur=res_count$scorebeta_i*norm_vec 
     score_pertur=apply(score_pertur,1,sum)
     
-    asym_linear_beta=diag(res_count$varbeta)*score_pertur
-    
+    asym_linear_beta=diag(res_count$varbeta)*score_pertur #multiply the diagonal matrix of varbeta
+
     appr_bias_M[i,]=res_count$eigfun%*%(asym_linear_beta)
   }
 
@@ -58,11 +58,10 @@ sfInit(parallel = TRUE,cpus = 14)
 sfExportAll()
 CI=sfClusterApplyLB(valid,get_ci)
 sfStop()
-save(CI,file=paste('realdata_CI','.Rdata',sep = '')) # generate the pointwise CI for these around 1600 valid results
+save(CI,file=paste('realdata_smooth_CI','.Rdata',sep = ''))
 
-# Alleviate the variability brought by the initial values, use the top 25% of the valid results, for final CI result to transfer into CC, named by  "CCdata_PointwiseCI.Rdata"
-load(paste('realdata_CI','.Rdata',sep = ''))
-
+### Use the top 250  of the valid results, for final CI result to transfer into CC, named by  "CCdata_PointwiseCI.Rdata" ######
+load(paste('realdata_smooth_CI','.Rdata',sep = ''))
 need=which(loglik_fit>=quantile(loglik_fit)[4]) # top 25% quantile of loglik
 up_result=low_result=ori_result=matrix(NA,nrow=200,ncol=length(need))
 j=1
@@ -73,11 +72,9 @@ for (i in need){
   j=j+1
 }
 
-
-### Plot the pointwise CI ###
 library(ggplot2)
 filename=paste('CCdata_CI','.pdf',sep='')
-# take the mean of the top 25% valid results
+# take the mean of the top 250 valid results
 lower=apply(low_result,1,mean)
 upper=apply(up_result,1,mean)
 estimation=apply(ori_result,1,mean)
@@ -122,11 +119,13 @@ p1 <- ggplot() +
         axis.title.y=element_text(vjust=0.5, size=15),
         axis.text.x=element_text(vjust=1,size=11),
         axis.text.y=element_text(vjust=1,size=11))
+#jpeg(file = "CCfpca_linkfun.png",width=1400,height=800,res=100)
 print(p1)
 dev.off()
 
 
-############### gamma and C-index, using the best result ############
+
+############### gamma and C-index ############
 coefficient=round(res[[valid[best_res]]]$summary$coefficients,3)
 coef_vec=pvalue_vec=se_vec=''
 for(i in 6:22){
@@ -135,5 +134,6 @@ for(i in 6:22){
   se_vec=paste(se_vec,coefficient[i,3],sep = ' & ')
   }
 
-round(res[[valid[best_res]]]$corindex,3)
+
+round(res[[valid[best_res]]]$corindex,3) # or cindex_fit[best_res,]
 

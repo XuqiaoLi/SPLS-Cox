@@ -64,7 +64,7 @@ valid=na.omit(valid)
 if(length(valid)>simutimes){valid=valid[1:simutimes]}
 
 ######Multiplier process for pointwise confidence interval#########
-get_PWCB<-function(count){
+get_ci<-function(count){
   set.seed(2024*gindex*count)
   res_count=res[[count]]
   M=10000
@@ -95,7 +95,7 @@ get_PWCB<-function(count){
 sfInit(parallel = TRUE,cpus = 14)
 sfLibrary(MASS)
 sfExportAll()
-res_pointwise=sfClusterApplyLB(valid,get_PWCB)
+res_pointwise=sfClusterApplyLB(valid,get_ci)
 sfStop()
 save(res_pointwise, file=paste('shape_pointwise_result','g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
 #############
