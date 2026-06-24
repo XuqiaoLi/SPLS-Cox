@@ -1,6 +1,6 @@
 ###############################
 rm(list=ls())
-options(warn=-1)
+options(warn=-1) 
 library(locpol)
 library(MASS)
 library(survival)
@@ -10,11 +10,12 @@ library(fda)
 library(splines)
 library(statmod)
 library(snowfall)
-###############################
+##############################
 
 thisseed=2020
 cumulative_var=0.95 
 errorvariance= 0.5 
+l.parameter=0.1 # K(s,t)=sigma exp{-(s-t)^2/(2l^2)}, here the sigma is errorvariance
 
 crit = 0.01 
 corr = 1e-13
@@ -22,7 +23,6 @@ corr = 1e-13
 nknots = 4  # number of knots
 df = nknots+1  #cubic spline
 
-#link function
 g1 <- function(x) sin(2*x)+2*cos(2+x)-2*cos(2)
 g2 <- function(x) x
 g3 <- function(x) exp(x)-1
@@ -32,14 +32,14 @@ n=1000
 g=g1
 gindex=1 
 crindex=1 
-censoringvalues<-c(0.1, 0.3)
+censoringvalues<-c(0.1, 0.3) #censoring rate
 cvalue=censoringvalues[crindex] 
 
 taulist1<-c(9.01,2.5) 
 taulist2<-c(14.2,4.1) 
 taulist3<-c(11.5,3.4) 
 
-taulist=taulist1 # generate censor variable for specified censoring rate
+taulist=taulist1 
 
 h <- calh <- 0.01
 p <- 1/h+1 
@@ -50,13 +50,13 @@ lambda=c(1,1/2,1/4,1/8)
 q<-4 
 mygamma<-rep(0.2,q) 
 
-#eigenfunction
+#eigenfunction, FPC
 eigenf1 <- function(x) sin(2*pi*x)*sqrt(2)
 eigenf2 <- function(x) cos(2*pi*x)*sqrt(2)
 eigenf3 <- function(x) sin(4*pi*x)*sqrt(2)
 eigenf4 <- function(x) cos(4*pi*x)*sqrt(2)
 
-#beta(s)
+#β0(s)
 betafun <- function(x){ 
   index=c(1,1/4,1/9,1/16)
   true_index=index/sqrt(sum(index^2))
@@ -70,25 +70,26 @@ LengthAlpha=q
 ############ functions defined ##############
 generator <- function(g,crindex,taulist) 
 {
-  #Xi(s) sigma
+ 
   Sigma<-matrix(0,4,4)
   for (j in 1:4) Sigma[j,j]=sqrt(lambda[j])
   
-  #Z sigma
+
   SigmaZ<-0.5^t(sapply(1:q, function(i, j) abs(i-j), 1:q))
   
   correlationmatrix<-matrix(0,nrow(Sigma),q)
-  #allow some correlation between Zi and Xi(s)
+
   correlationmatrix[1,1:q]<-0.1
   correlationmatrix[1:q,1]<-0.1
   
+
   Bigsigma<-rbind(cbind(Sigma, correlationmatrix), 
                   cbind(t(correlationmatrix), SigmaZ))
   
-  mu<-rep(0,nrow(Bigsigma)) #mean zero
+  mu<-rep(0,nrow(Bigsigma)) 
   data<-mvrnorm(n,mu,Bigsigma)
   
-  # generate Xi(s)
+
   B <- cbind(eigenf1(t), eigenf2(t), eigenf3(t), eigenf4(t))
   score <- matrix(0, nrow=n, ncol=length(lambda))
   
@@ -96,12 +97,26 @@ generator <- function(g,crindex,taulist)
     score[,j] <- data[,j]
   rawX <- t(matrix(rep(t,n),nrow=p,ncol=n)) + score %*% t(B)
   
-  # generateZ
+
   ZS=data[,(nrow(Sigma)+1):(nrow(Sigma)+q)]
+
   
-  # add noisy term
-  error<-matrix(rnorm(n*p,0,sqrt(errorvariance)),n,p)
-  observeX<-rawX+error #W=X+epsilon
+  #covariance function
+  K <- matrix(0, p, p)
+  for (i in 1:p) {
+    for (j in 1:p) {
+      K[i, j] <- errorvariance * exp( - (t[i] - t[j])^2 / (2 * l.parameter^2) )
+    }
+  }
+  
+  # mean function
+  mu.fun <- rep(0, p)
+  error=mvrnorm(n = 1, mu = mu.fun, Sigma = K)
+  
+  observeX<-rawX+error
+  
+  ###################
+  
   
   # smooth Xi(s)
   X<-matrix(NA,n,p)
@@ -115,19 +130,20 @@ generator <- function(g,crindex,taulist)
   # Estimate FPC
   scaleX<-scale(X,center=TRUE,scale=FALSE) #-μ(s)
   SVDresult=svd(scaleX)
-  Eigvec=SVDresult$v #eigenvector
+  Eigvec=SVDresult$v
   Singval=SVDresult$d 
-  est_Eigval=Singval^2*h/(n-1) #eigenvalue
+  est_Eigval=Singval^2*h/(n-1)
   
-  #cumulative variance
+
   for(i in 1:10){
     culVar=sum(est_Eigval[1:i])/sum(est_Eigval)
     if(culVar>=cumulative_var){VARselectindex=i;break}
   }
   
+
   tau=taulist[crindex]
   
-  #generate time-to-event data
+
   parameter<-exp(g((rawX-t(matrix(rep(t,n),nrow=p,ncol=n)))%*%truebeta*calh)+
                    ZS%*%mygamma)
   
@@ -156,25 +172,23 @@ parasimulation<-function(count,init_seed=1){
   
   LengthBeta=VARselectindex
   
-  est_Eigfun=Eigvec[,1:VARselectindex]/sqrt(h) # eigen function
-  beta0 <- as.vector(truebeta%*%(est_Eigfun)*h) # determine the direction such that beta1>0
+  est_Eigfun=Eigvec[,1:VARselectindex]/sqrt(h) 
+  beta0 <- as.vector(truebeta%*%(est_Eigfun)*h)
   if (beta0[1]<0) est_Eigfun <- -est_Eigfun
   
-  eigenscore<-scaleX%*%est_Eigfun*h 
+  eigenscore<-scaleX%*%est_Eigfun*h #\xi_{ij},j=1,..,rn,i=1,..n
   designmatrix<-cbind(eigenscore,ZS)
   data<-data.frame(cbind(time, event, designmatrix))
   
-  # following notation is named for utilizing the code of Sun et al.(2008) Polynomial spline estimation of partially linear single-index proportional hazards regression models
-  mat <- t(data[ ,3:(2+VARselectindex)]) #FPC
+  mat <- t(data[ ,3:(2+VARselectindex)])
   delta<-data[ ,2]
   v <- t(data[ , -1:-(2+VARselectindex)]) #scalar Z
   Z<-data[,1]   #observed time
   
   tm<-sort(unique(Z[delta==1]))
-  m<-length(tm) # distinctive event time
-  n<-length(Z) # sample size
+  m<-length(tm) 
+  n<-length(Z) 
   
-  # initial
   set.seed(thisseed+count+init_seed)
   beta = rnorm(VARselectindex)
   beta = beta/sqrt(sum(beta^2)) # norm
@@ -188,9 +202,9 @@ parasimulation<-function(count,init_seed=1){
   
   while(criterion > crit && loop < 50)
   {
-    ######## Beta update #######
-    xbeta<-t(beta) %*% mat
-    xbeta<-t(xbeta) 
+    ######## beta update #######
+    xbeta<-t(beta) %*% mat  # 1*n
+    xbeta<-t(xbeta)  # n*1
     xbetas<-sort(xbeta)
     step_xbeta<- (range(xbetas)[2]-range(xbetas)[1]+corr)/(nknots-1)
     knotspos_xbeta<-rep(0,nknots)
@@ -219,10 +233,10 @@ parasimulation<-function(count,init_seed=1){
     B <- bsplineS(xbeta, breaks=knotspos_xbeta, norder=3, nderiv=0)
     Bder <- bsplineS(xbeta, breaks=knotspos_xbeta, norder=3, nderiv=1)
     
-    alphaV <- t(v)%*% alpha 
+    alphaV <- t(v)%*% alpha  # N*1
     
     ######HessianBeta#########
-    H1temp<-Bder %*% gamma 
+    H1temp<-Bder %*% gamma # n*1
     H1 <-0
     H2 <-0
     for(i in 1:m)
@@ -253,10 +267,10 @@ parasimulation<-function(count,init_seed=1){
     HB <- H
     
     #############ScoreBeta###############
-    s1p <- matvec(mat, (B %*% gamma)) 
-    s1<- 0
-    ex<-exp(Btilda %*% gamma+alphaV)* (B %*% gamma)  
-    numer <- matvec(mat,ex)  
+    s1p <- matvec(mat, (B %*% gamma))  # 8*n matrix
+    s1<- 0   ## first part
+    ex<-exp(Btilda %*% gamma+alphaV)* (B %*% gamma) # n*1 
+    numer <- matvec(mat,ex)   # 8*n matrix
     s2<-0
     for(i in 1:m){
       indD <- as.numeric(Z==tm[i]) * delta # indicator for Di set
@@ -264,7 +278,7 @@ parasimulation<-function(count,init_seed=1){
       s1 <- s1 + matvec(s1p,indD) %*% rep(1,n)
       
       ind<-as.numeric(Z>=tm[i])  # 1*n indicator
-      newnum <- matvec(numer, ind) %*% rep(1,n) 
+      newnum <- matvec(numer, ind) %*% rep(1,n) # to sum, get a 8*1 vector
       denom  <- sum(exp(Btilda %*% gamma+alphaV) * ind)
       s2<-s2 + Dsize*newnum/denom
     }
@@ -327,9 +341,9 @@ parasimulation<-function(count,init_seed=1){
     B=Bnew <- bsplineS(xbetanew, breaks=knotspos_xbeta, norder=3, nderiv=0)
     Bder=Bdernew <- bsplineS(xbetanew, breaks=knotspos_xbeta, norder=3, nderiv=1)
     Btilda=Btildanew
-    alphaV=t(v)%*% alpha 
+    alphaV=t(v)%*% alpha  # N*1
     
-    ######HessianBeta#########
+    #############
     H1temp<-Bder %*% gamma # n*1
     H1 <-0
     H2 <-0
@@ -496,13 +510,13 @@ parasimulation<-function(count,init_seed=1){
     varmat<-(G %*% midmat %*% Gt)
     varbeta<-varmat[1:LengthBeta,1:LengthBeta]
     
-    #############ScoreBeta_i###############
+    #######################
     scorebeta_i=matrix(NA,VARselectindex,m)
     
-    s1p <- matvec(mat, (B %*% gamma))
+    s1p <- matvec(mat, (B %*% gamma))  # 8*n matrix
     s1<- 0   ## first part
     ex<-exp(Btilda %*% gamma+alphaV)* (B %*% gamma) # n*1 
-    numer <- matvec(mat,ex) 
+    numer <- matvec(mat,ex)   # 8*n matrix
     s2<-0
     for(i in 1:m){
       indD <- as.numeric(Z==tm[i]) * delta # indicator for Di set
@@ -510,16 +524,16 @@ parasimulation<-function(count,init_seed=1){
       s1_i= matvec(s1p,indD) %*% rep(1,n)
       
       ind<-as.numeric(Z>=tm[i])  # 1*n indicator
-      newnum <- matvec(numer, ind) %*% rep(1,n)
+      newnum <- matvec(numer, ind) %*% rep(1,n) # to sum, get a 8*1 vector
       denom  <- sum(exp(Btilda %*% gamma+alphaV) * ind)
       s2_i= Dsize*newnum/denom
       
       scorebeta_i[,i]=s1_i-s2_i
     }
     
-    ###############
-    linkxbeta <- t(eigenscore %*% as.matrix(beta))
-    linkres <- t(Btildanew %*% as.matrix(gamma)) 
+    ######## save #######
+    linkxbeta <- t(eigenscore %*% as.matrix(beta))# Σ ξijβj
+    linkres <- t(Btildanew %*% as.matrix(gamma)) #Sun's notation
     
     cindex<-concordance.index(predict(ss),surv.time = Z, 
                               surv.event = delta ,method = "noether")
@@ -534,19 +548,19 @@ parasimulation<-function(count,init_seed=1){
     
   }
   else{
+  
     return(paste0(count, "th simulation 's rn is", (VARselectindex),' and not converge'))
   }
 }
 
-### additional simulations with different functional coefficient, and therefore set the taulist for satisfying censor rate ###
-taulist1<-c(9.01,2.5);taulist2<-c(14.2,4.1);taulist3<-c(11.5,3.4);beta_index=c(1,1/4,1/9,1/16)
-# taulist1<-c(10.8,3); taulist2<-c(17.2,4.1); taulist3<-c(12.3,3.1);beta_index=c(1,1,0,0) 
-# taulist1<-c(10.8,3);taulist2<-c(16.9,4.0);taulist3<-c(12.3,3.2);beta_index=c(1,1,1,0)
-# taulist1<-c(10.8,3);taulist2<-c(16.9,4.0);taulist3<-c(12.2,3.1);beta_index=c(0.6, -0.78, 0 , -0.17) 
-# taulist1<-c(10.9,2.95);taulist2<-c(18.4,4.2);taulist3<-c(12.5,3.1);beta_index=c(1,0,0,0) 
 
-g=g1;crindex=1
-taulist=taulist1
+### set the taulist for satisfying censor rate (updated) ###
+# taulist1<-c(9.01,2.5);taulist2<-c(14.2,4.1);taulist3<-c(11.5,3.4);beta_index=c(1,1/4,1/9,1/16)
+taulist1<-c(10.8,2.9);taulist2<-c(18.2,4.1);taulist3<-c(12.4,3.1);beta_index=c(1,1/4,1/9,1/16)
+
+
+g=g3;crindex=2
+taulist=taulist3
 n=500
 
 betafun <- function(x){ 
@@ -560,9 +574,11 @@ truebeta<-betafun(t)
 
 generator.tune <- function(g,crindex,taulist) 
 {
+
   Sigma<-matrix(0,4,4)
   for (j in 1:4) Sigma[j,j]=sqrt(lambda[j])
   
+
   SigmaZ<-0.5^t(sapply(1:q, function(i, j) abs(i-j), 1:q))
   
   correlationmatrix<-matrix(0,nrow(Sigma),q)
@@ -574,9 +590,10 @@ generator.tune <- function(g,crindex,taulist)
   Bigsigma<-rbind(cbind(Sigma, correlationmatrix), 
                   cbind(t(correlationmatrix), SigmaZ))
   
-  mu<-rep(0,nrow(Bigsigma)) 
+  mu<-rep(0,nrow(Bigsigma))
   data<-mvrnorm(n,mu,Bigsigma)
   
+
   B <- cbind(eigenf1(t), eigenf2(t), eigenf3(t), eigenf4(t))
   score <- matrix(0, nrow=n, ncol=length(lambda))
   
@@ -584,11 +601,25 @@ generator.tune <- function(g,crindex,taulist)
     score[,j] <- data[,j]
   rawX <- t(matrix(rep(t,n),nrow=p,ncol=n)) + score %*% t(B)
   
+
   ZS=data[,(nrow(Sigma)+1):(nrow(Sigma)+q)]
   
-  error<-matrix(rnorm(n*p,0,sqrt(errorvariance)),n,p)
-  observeX<-rawX+error 
   
+  #covariance function
+  K <- matrix(0, p, p)
+  for (i in 1:p) {
+    for (j in 1:p) {
+      K[i, j] <- errorvariance * exp( - (t[i] - t[j])^2 / (2 * l.parameter^2) )
+    }
+  }
+  
+  # mean function
+  mu.fun <- rep(0, p)
+  error=mvrnorm(n = 1, mu = mu.fun, Sigma = K)
+  
+  observeX<-rawX+error
+  
+
   tau=taulist[crindex]
   
   parameter<-exp(g((rawX-t(matrix(rep(t,n),nrow=p,ncol=n)))%*%truebeta*calh)+
@@ -611,17 +642,16 @@ for(i in 1:500){
 }
 mean(cr.vec)
 
-
 ###############g1-3 n500 cr0.1##############
-n=200
+n=500
 gindex_list=c(1,2,3)
-crindex=1#对应0.1
+crindex=1
 cvalue=censoringvalues[crindex] 
 
 for(gindex in gindex_list){
   g=eval(parse(text = paste0('g',gindex)))
   taulist=switch(gindex,taulist1,taulist2,taulist3) 
-  replicate_time=580
+  replicate_time=1
   sfInit(parallel = TRUE,cpus = 1)
   sfLibrary(snowfall)
   sfLibrary(locpol)
@@ -635,267 +665,8 @@ for(gindex in gindex_list){
   sfExportAll()
   res=sfClusterApplyLB(1:replicate_time,parasimulation)
   sfStop()
-  save(res, file=paste('newPointwise','g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
+  save(res, file=paste('newPointwise','g',gindex,'n',n,'cr',cvalue,'lvalue',l.parameter,'errorvar',errorvariance,'.Rdata',sep = ''))
 }
 
 
 
-############# additional simulation setups with different baseline hazard #########################
-##### weibull #####
-#shape parameter=2
-shape.parameter=2
-taulist1<-c(8.5);taulist2<-c(10.6);taulist3<-c(8.7)
-#shape.parameter=1
-shape.parameter=1
-taulist1<-c(9.01,2.5);taulist2<-c(14.2,4.1);taulist3<-c(11.5,3.4)
-
-generator.weibull <- function(g,crindex,taulist) 
-{
-  #Xi(s)的sigma
-  Sigma<-matrix(0,4,4)
-  for (j in 1:4) Sigma[j,j]=sqrt(lambda[j])
-  
-  #Z的sigma
-  SigmaZ<-0.5^t(sapply(1:q, function(i, j) abs(i-j), 1:q))
-  
-  correlationmatrix<-matrix(0,nrow(Sigma),q)
-  #allow some correlation between Zi and Xi(s)
-  correlationmatrix[1,1:q]<-0.1
-  correlationmatrix[1:q,1]<-0.1
-  
-
-  Bigsigma<-rbind(cbind(Sigma, correlationmatrix), 
-                  cbind(t(correlationmatrix), SigmaZ))
-  
-  mu<-rep(0,nrow(Bigsigma)) 
-  data<-mvrnorm(n,mu,Bigsigma)
-  
-  #
-  B <- cbind(eigenf1(t), eigenf2(t), eigenf3(t), eigenf4(t))
-  score <- matrix(0, nrow=n, ncol=length(lambda))
-  
-  for(j in 1:4)
-    score[,j] <- data[,j]
-  rawX <- t(matrix(rep(t,n),nrow=p,ncol=n)) + score %*% t(B)
-  
-  # 
-  ZS=data[,(nrow(Sigma)+1):(nrow(Sigma)+q)]
-  
-  # 
-  error<-matrix(rnorm(n*p,0,sqrt(errorvariance)),n,p)
-  observeX<-rawX+error #W=X+epsilon
-  
-  # smooth Xi(s)
-  X<-matrix(NA,n,p)
-  for (i in 1:n){
-    dataframe <- data.frame(t)
-    dataframe$observeX<-observeX[i,]
-    lpfit <- locpol(observeX~t,dataframe, xeval=t)
-    X[i,]<-lpfit$lpFit[,2]
-  }
-  
-  # Estimate FPC
-  scaleX<-scale(X,center=TRUE,scale=FALSE) #-μ(s)
-  SVDresult=svd(scaleX)
-  Eigvec=SVDresult$v 
-  Singval=SVDresult$d 
-  est_Eigval=Singval^2*h/(n-1)
-  
-  #
-  for(i in 1:10){
-    culVar=sum(est_Eigval[1:i])/sum(est_Eigval)
-    if(culVar>=cumulative_var){VARselectindex=i;break}
-  }
-  
-  #
-  tau=taulist[crindex]
-  
-  # the time-to-event data
-  parameter<-exp(-(g((rawX-t(matrix(rep(t,n),nrow=p,ncol=n)))%*%truebeta*calh)+
-                     ZS%*%mygamma)/shape.parameter)
-  
-  failuretime<-rweibull(n, shape = shape.parameter, scale = parameter)
-  censoringtime<-runif(n,0,tau)
-  
-  event<-rep(0,n)
-  event<-as.numeric(failuretime<censoringtime)
-  
-  time<-failuretime*event+censoringtime*(rep(1,n)-event)
-  
-  dataframe<-list(time=time,event=event,scaleX=scaleX,ZS=ZS,Eigvec=Eigvec,VARselectindex=VARselectindex)
-}
-
-generator=generator.weibull
-
-
-n=200
-gindex_list=c(1,2,3)
-crindex=1
-cvalue=censoringvalues[crindex] 
-
-for(gindex in gindex_list){
-  g=eval(parse(text = paste0('g',gindex)))
-  taulist=switch(gindex,taulist1,taulist2,taulist3) 
-  replicate_time=580
-  sfInit(parallel = TRUE,cpus = 4)
-  sfLibrary(snowfall)
-  sfLibrary(locpol)
-  sfLibrary(MASS)
-  sfLibrary(survival)
-  sfLibrary(survAUC)
-  sfLibrary(survcomp)
-  sfLibrary(fda)
-  sfLibrary(splines)
-  sfLibrary(statmod)
-  sfExportAll()
-  res=sfClusterApplyLB(1:replicate_time,parasimulation)
-  sfStop()
-  save(res, file=paste('newPointwise.weibull','g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
-}
-
-
-##### piecewise constant #####
-taulist1<-c(15.8);taulist2<-c(35.6);taulist3<-c(20.7)
-
-cuts_pw=c(0.5, 2);rates_pw = c(1.5, 0.8, 0.3)
-
-rPWexp3_cox <- function(eta, cuts = c(0.5, 2), rates = c(1.5, 0.8, 0.3)) {
-  # eta: g()+Zγ, length n
-  # cuts: two cut points c1 < c2
-  # rates: three baseline hazard levels (lambda1, lambda2, lambda3)
-  
-  n <- length(eta)
-  u <- runif(n)
-  w <- -log(u) / exp(eta)   # need solve H0(T)=w
-  
-  c1 <- cuts[1]
-  c2 <- cuts[2]
-  lambda1 <- rates[1]
-  lambda2 <- rates[2]
-  lambda3 <- rates[3]
-  
-  A1 <- lambda1 * c1
-  A2 <- A1 + lambda2 * (c2 - c1)
-  
-  TT <- numeric(n)
-  
-  idx1 <- (w <= A1)
-  TT[idx1] <- w[idx1] / lambda1
-  
-  idx2 <- (w > A1 & w <= A2)
-  TT[idx2] <- c1 + (w[idx2] - A1) / lambda2
-  
-  idx3 <- (w > A2)
-  TT[idx3] <- c2 + (w[idx3] - A2) / lambda3
-  
-  return(TT)
-}
-
-generator.piecewise <- function(g,crindex,taulist) 
-{
-  #
-  Sigma<-matrix(0,4,4)
-  for (j in 1:4) Sigma[j,j]=sqrt(lambda[j])
-  
-  #
-  SigmaZ<-0.5^t(sapply(1:q, function(i, j) abs(i-j), 1:q))
-  
-  correlationmatrix<-matrix(0,nrow(Sigma),q)
-  #
-  correlationmatrix[1,1:q]<-0.1
-  correlationmatrix[1:q,1]<-0.1
-  
-  #
-  Bigsigma<-rbind(cbind(Sigma, correlationmatrix), 
-                  cbind(t(correlationmatrix), SigmaZ))
-  
-  mu<-rep(0,nrow(Bigsigma)) 
-  data<-mvrnorm(n,mu,Bigsigma)
-  
-  #
-  B <- cbind(eigenf1(t), eigenf2(t), eigenf3(t), eigenf4(t))
-  score <- matrix(0, nrow=n, ncol=length(lambda))
-  
-  for(j in 1:4)
-    score[,j] <- data[,j]
-  rawX <- t(matrix(rep(t,n),nrow=p,ncol=n)) + score %*% t(B)
-  
-  # 
-  ZS=data[,(nrow(Sigma)+1):(nrow(Sigma)+q)]
-  
-  # 
-  error<-matrix(rnorm(n*p,0,sqrt(errorvariance)),n,p)
-  observeX<-rawX+error #W=X+epsilon
-  
-  # smooth Xi(s)
-  X<-matrix(NA,n,p)
-  for (i in 1:n){
-    dataframe <- data.frame(t)
-    dataframe$observeX<-observeX[i,]
-    lpfit <- locpol(observeX~t,dataframe, xeval=t)
-    X[i,]<-lpfit$lpFit[,2]
-  }
-  
-  # Estimate FPC
-  scaleX<-scale(X,center=TRUE,scale=FALSE) #-μ(s)
-  SVDresult=svd(scaleX)
-  Eigvec=SVDresult$v #
-  Singval=SVDresult$d 
-  est_Eigval=Singval^2*h/(n-1)#
-  
-  #
-  for(i in 1:10){
-    culVar=sum(est_Eigval[1:i])/sum(est_Eigval)
-    if(culVar>=cumulative_var){VARselectindex=i;break}
-  }
-  
-  #
-  tau=taulist[crindex]
-  
-  
-  parameter<-as.vector(g((rawX-t(matrix(rep(t,n),nrow=p,ncol=n)))%*%truebeta*calh)+
-                         ZS%*%mygamma)
-  
-  # failure time: 3-piecewise constant baseline hazard
-  failuretime <- rPWexp3_cox(
-    eta = parameter,
-    cuts = cuts_pw,
-    rates = rates_pw
-  )
-  
-  censoringtime<-runif(n,0,tau)
-  
-  event<-rep(0,n)
-  event<-as.numeric(failuretime<censoringtime)
-  
-  time<-failuretime*event+censoringtime*(rep(1,n)-event)
-  
-  dataframe<-list(time=time,event=event,scaleX=scaleX,ZS=ZS,Eigvec=Eigvec,VARselectindex=VARselectindex)
-}
-
-generator=generator.piecewise
-
-n=200
-gindex_list=c(1,2,3)
-crindex=1
-cvalue=censoringvalues[crindex] 
-
-for(gindex in gindex_list){
-  g=eval(parse(text = paste0('g',gindex)))
-  taulist=switch(gindex,taulist1,taulist2,taulist3) 
-  replicate_time=580
-  sfInit(parallel = TRUE,cpus = 4)
-  sfLibrary(snowfall)
-  sfLibrary(locpol)
-  sfLibrary(MASS)
-  sfLibrary(survival)
-  sfLibrary(survAUC)
-  sfLibrary(survcomp)
-  sfLibrary(fda)
-  sfLibrary(splines)
-  sfLibrary(statmod)
-  sfExportAll()
-  res=sfClusterApplyLB(1:replicate_time,parasimulation)
-  sfStop()
-  save(res, file=paste('newPointwise.piecewise','g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
-}

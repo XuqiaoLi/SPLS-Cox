@@ -589,6 +589,7 @@ parasimulation<-function(count,init_seed=1){
   }
 }
 #####################################################
+n=372 # 744
 g=g1 # g2 or g3
 gindex=1 # corresponding to g1
 taulist=switch(gindex,taulist1,taulist2,taulist3)

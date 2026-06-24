@@ -5,7 +5,12 @@ n=200 # 500 or 1000
 q=4
 gindex=1 # 2 or 3
 cvalue=0.1
-load(paste('newPointwise','g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
+
+# get.name='newPointwise'
+get.name='newPointwise.weibull'
+# get.name='newPointwise.piecewise'
+
+load(paste(get.name,'g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
 
 h <- calh <- 0.01
 p <- 1/h+1

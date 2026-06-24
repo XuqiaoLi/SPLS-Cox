@@ -77,8 +77,9 @@ save(res_pointwise, file=paste('pointwise_result','g',gindex,'n',n,'cr',cvalue,'
 
 
 #####Plot the pointwise cp result#############
+
 library(ggplot2)
-filename='pointwise_CP.pdf'
+
 get_value<-function(n,gindex,cvalue){
   load(paste('pointwise_result','g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
   if_cover=matrix(NA,nrow=simutimes,ncol=p)
@@ -108,16 +109,29 @@ n500g1cr0.1=get_value(500,1,0.1)
 n500g2cr0.1=get_value(500,2,0.1)
 n500g3cr0.1=get_value(500,3,0.1)
 
-# alldata=rbind(n500g1cr0.1,n500g2cr0.1,n500g3cr0.1)
-alldata=rbind(n500g1cr0.1,n500g2cr0.1)
+alldata=rbind(n500g1cr0.1,n500g2cr0.1,n500g3cr0.1)
 
+filename='pointwise_CP_260410.pdf'
 pdf(filename,width = 15,height = 5)
 ggplot(alldata, aes(x=t,y=rate)) +  
-  geom_point(shape=1,size=1.5)+facet_grid(~linkfun,scales='free',labeller = labeller(linkfun = label_parsed))+
-  geom_hline(aes(yintercept=0.95),colour='red',linetype="dashed",size=0.8)+
-  xlab('s')+ylab('covarage probabilities') + theme_bw() 
+  geom_point(size = 0.8, color = "black", shape = 1)+facet_grid(~linkfun,scales='free',labeller = labeller(linkfun = label_parsed))+
+  geom_hline(aes(yintercept=0.95),colour='red',linetype="dashed",size=0.8)+ coord_cartesian(ylim=c(0,1)) +
+  theme_bw() +
+  xlab('s')+ylab('Coverage Probabilities') + 
+  theme(
+    legend.position = "none", 
+    strip.text = element_text(size=12),
+    axis.title.y = element_text(size = 16),  
+    axis.title.x = element_text(size = 14), 
+    axis.text = element_text(size = 11) 
+  )
 dev.off()
 
+# #plot only one 
+# ggplot(n500g1cr0.1, aes(x=t,y=rate)) +  
+#   geom_line()+
+#   geom_hline(aes(yintercept=0.95),colour='red',linetype="dashed",size=0.8)+
+#   xlab('s')+ylab('Coverage probabilities') + theme_bw() 
 
 # overall coverage probabilities
 round(mean(n500g1cr0.1$rate),3)

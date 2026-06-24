@@ -1,4 +1,5 @@
 rm(list=ls())
+library(locpol)
 
 cleandata=read.csv('ccdata.csv',header = F)
 observeX=as.matrix(cleandata)
@@ -14,7 +15,7 @@ h <- calh <-1
 t <- seq(1,ncol(cleandata),h)
 mygamma<-rep(0.2,q)
 LengthAlpha=q
-load(paste('newShape','g',gindex,'cr',cvalue,'.Rdata',sep = ''))
+load(paste('newShape_smooth','g',gindex,'n',n,'cr',cvalue,'.Rdata',sep = ''))
 
 # linkfunction
 g1 <- function(x) sin(2 * x) + 2 * cos(2 + x) - 2 * cos(2)

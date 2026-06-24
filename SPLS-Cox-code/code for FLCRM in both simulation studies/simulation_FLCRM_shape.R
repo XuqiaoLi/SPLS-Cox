@@ -192,6 +192,7 @@ paraFLCRM<-function(count){
 }
 
 #############################
+n=744 # 20260407: this n is not the previous n
 replicate_time=500
 
 g=g1 # g2 or g3
